@@ -1,2 +1,4 @@
 plugins/0BDFDB.data.json
 plugins/0BDFDB.raw.css
+data/*
+!data/stable
