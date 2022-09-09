@@ -3,7 +3,7 @@
  * @author TenorTheHusky
  * @authorId 563652755814875146
  * @description A simple plugin that allows collapsing various sections of the Discord UI.
- * @version 5.5.1
+ * @version 5.7.0
  * @website https://github.com/programmer2514/BetterDiscord-CollapsibleUI
  * @source https://raw.githubusercontent.com/programmer2514/BetterDiscord-CollapsibleUI/main/CollapsibleUI.plugin.js
  */
@@ -19,19 +19,29 @@ module.exports = (() => {
                 discord_id: '563652755814875146',
                 github_username: 'programmer2514'
             }],
-            version: '5.5.1',
+            version: '5.7.0',
             description: 'A simple plugin that allows collapsing various sections of the Discord UI.',
             github: 'https://github.com/programmer2514/BetterDiscord-CollapsibleUI',
             github_raw: 'https://raw.githubusercontent.com/programmer2514/BetterDiscord-CollapsibleUI/main/CollapsibleUI.plugin.js'
         },
         changelog: [{
-            title: '5.5.1',
+            title: '5.7.0',
             items: [
-                'Tweaked more settings to improve reactability (resets uncollapse distance and delay)',
-                'Clarified and moved a settings option to make it more usable'
+                'Added settings option to change behavior of collapsed elements when their corresponding button is disabled',
+                'Greatly improved plugin loading times and stability'
             ]
         }, {
-            title: '5.2.6 - 5.5.0',
+            title: '5.6.0 - 5.6.2',
+            items: [
+                'Fixed settings button alignment glitch',
+                'Fixed incorrect handling of disabled toolbar buttons',
+                'Fixed channel list being able to resize beyond window limits',
+                'Improved channel list fix (it actually works now)',
+                'Fixed plugin not loading during video call/screenshare when chat is hidden'
+
+            ]
+        }, {
+            title: '5.2.6 - 5.5.1',
             items: [
                 'Suppressed false code security errors',
                 'Fixed unintentional console spam',
@@ -48,7 +58,9 @@ module.exports = (() => {
                 'Added ChannelDMs compatibility',
                 'Fixed toolbar not initializing while in call',
                 'Added minimal uncollapse delay, which should improve usability',
-                'Tweaked settings and fixed corruption issue (resets all settings to default)'
+                'Tweaked settings and fixed corruption issue (resets all settings to default)',
+                'Tweaked more settings to improve reactability (resets uncollapse distance and delay)',
+                'Clarified and moved a settings option to make it more usable'
             ]
         }, {
             title: '5.0.0 - 5.1.6',
@@ -204,6 +216,7 @@ module.exports = (() => {
 
             let buttonsOrder = [1,2,4,6,7,3,5];
             let dynamicUncollapseEnabled = [true,true,true,true,true,true,true];
+            let disabledButtonsStayCollapsed = false;
 
             let settingsButtonsMaxWidth = 100;
             let toolbarIconMaxWidth = 300;
@@ -242,6 +255,7 @@ module.exports = (() => {
 
             // Abstract modified elements
             this.windowBase = document.querySelector('.base-2jDfDU');
+            this.baseLayer = document.querySelector('.baseLayer-W6S8cY');
             this.toolBar = document.querySelector('.toolbar-3_r2xA');
             this.searchBar = document.querySelector('.search-39IXmY');
             this.inviteToolbar = document.querySelector('.inviteToolbar-2k2nqz');
@@ -250,10 +264,12 @@ module.exports = (() => {
             this.wordMark = document.querySelector('.wordmark-2u86JB');
             this.msgBar = document.querySelector('.form-3gdLxP');
             this.userArea = document.querySelector('.panels-3wFtMD');
+
             if (BdApi.Plugins.isEnabled('ChannelDms') && document.querySelector('.ChannelDms-channelmembers-wrap'))
                 this.membersList = document.querySelector('.ChannelDms-channelmembers-wrap');
             else
                 this.membersList = document.querySelector('.membersWrap-3NUR2t');
+
             this.serverList = document.querySelector('.wrapper-1_HaEi');
             this.channelList = document.querySelector('.sidebar-1tnWFu');
             this.settingsContainerBase = document.querySelector('.container-YkUktl');
@@ -263,6 +279,11 @@ module.exports = (() => {
 
             this.callContainerExists = (document.querySelector('.' + this.classCallContainer));
 
+            if (this.callContainerExists)
+                this.callContainerExpanded = document.querySelector('.' + this.classCallContainer).style.maxHeight;
+            else
+                this.callContainerExpanded = 'N/A';
+
             this.localeLabels = {
                                 serverList: 'Server List',
                                 channelList: 'Channel List',
@@ -271,7 +292,7 @@ module.exports = (() => {
                                 membersList: 'Members List',
                                 userArea: 'User Area',
                                 callContainer: 'Call Container'};
-            
+
             // Initialize delay handlers
             this.serverDUDelay = false;
             this.channelDUDelay = false;
@@ -292,6 +313,10 @@ module.exports = (() => {
             // Store eventListeners in an array
             this.eventListenerController = new AbortController();
             this.eventListenerSignal = this.eventListenerController.signal;
+
+            // Initialize delayed checkers
+            this.channelListWidthChecker = false;
+            this.callContainerChecker = false;
 
             // Initialize Horizontal Server List integration
             this.isHSLLoaded = false;
@@ -314,7 +339,19 @@ module.exports = (() => {
                     } catch {}
                 }
             } catch {}
-            
+
+            // Add a mutation observer to improve plugin stability
+            this.mutationReloader = new MutationObserver((mutationList) => {
+                try {
+                    if (mutationList[0].target.ariaHidden == 'false')
+                        cui.initialize();
+                } catch {
+                    console.warn('%c[CollapsibleUI] ' + '%cFailed to trigger mutationObserver reload! (see below)', 'color: #3a71c1; font-weight: 700;', '');
+                    console.warn(e);
+                }
+            });
+            this.mutationReloader.observe(this.baseLayer, {attributeFilter:['aria-hidden']});
+
             // Fix incompatibility between HSL and Dark Matter
             if (this.isHSLLoaded && this.isDarkMatterLoaded) {
                 this.settingsContainerBase.style.width = '100%';
@@ -483,6 +520,15 @@ module.exports = (() => {
                 BdApi.setData('CollapsibleUI', 'dynamicUncollapseEnabled', dynamicUncollapseEnabled.toString());
             }
 
+            // disabledButtonsStayCollapsed [Default: false]
+            if (BdApi.getData('CollapsibleUI', 'disabledButtonsStayCollapsed') === 'false') {
+                disabledButtonsStayCollapsed = false;
+            } else if (BdApi.getData('CollapsibleUI', 'disabledButtonsStayCollapsed') === 'true') {
+                disabledButtonsStayCollapsed = true;
+            } else {
+                BdApi.setData('CollapsibleUI', 'disabledButtonsStayCollapsed', 'false');
+            }
+
             // settingsButtonsMaxWidth [Default: 100]
             if (typeof(BdApi.getData('CollapsibleUI', 'settingsButtonsMaxWidth')) === 'string') {
                 settingsButtonsMaxWidth = parseInt(BdApi.getData('CollapsibleUI', 'settingsButtonsMaxWidth'));
@@ -539,8 +585,6 @@ module.exports = (() => {
                 BdApi.setData('CollapsibleUI', 'collapsedDistance', collapsedDistance.toString());
             }
 
-
-
             // Purge CollapsibleUI toolbar icons
             document.querySelectorAll('.collapsible-ui-element').forEach(e => e.remove());
 
@@ -553,7 +597,7 @@ module.exports = (() => {
             };
 
             // Hide default Members List button
-            if (this.membersList) {
+            if (this.membersList && this.searchBar) {
                 try {
                     if ((!BdApi.Plugins.isEnabled('KeywordTracker')) && (this.searchBar.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling) && (this.searchBar.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.previousElementSibling.classList.contains('icon-1ELUnB'))) {
                         this.searchBar.previousElementSibling.previousElementSibling.style.display = 'none';
@@ -566,6 +610,10 @@ module.exports = (() => {
                     this.searchBar.previousElementSibling.style.display = 'none';
                 }
             }
+
+            // Fix settings button alignment
+            if (this.settingsContainerBase)
+                this.settingsContainerBase.style.justifyContent = "space-between";
 
             // Define & add toolbar container
             var toolbarContainer = document.createElement('div');
@@ -771,7 +819,7 @@ module.exports = (() => {
             }
 
             // Read stored user data to decide active state of Server List button
-            if (this.serverList) {
+            if (this.serverList && (buttonsActive[0] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.serverListButtonActive') === 'false') {
                     if (this.serverListButton) this.serverListButton.classList.remove(this.classSelected);
                     if (disableTransitions) {
@@ -793,10 +841,10 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.serverListButtonActive', 'true');
                     if (this.serverListButton) this.serverListButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.serverListButtonActive', 'true');
 
             // Read stored user data to decide active state of Channel List button
-            if (this.channelList) {
+            if (this.channelList && (buttonsActive[1] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.channelListButtonActive') === 'false') {
                     if (this.channelListButton) this.channelListButton.classList.remove(this.classSelected);
                     if (disableTransitions) {
@@ -815,10 +863,10 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.channelListButtonActive', 'true');
                     if (this.channelListButton) this.channelListButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.channelListButtonActive', 'true');
 
             // Read stored user data to decide active state of Message Bar button
-            if (this.msgBar) {
+            if (this.msgBar && (buttonsActive[2] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.msgBarButtonActive') === 'false') {
                     if (this.msgBarButton) this.msgBarButton.classList.remove(this.classSelected);
                     if (disableTransitions) {
@@ -832,10 +880,10 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.msgBarButtonActive', 'true');
                     if (this.msgBarButton) this.msgBarButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.msgBarButtonActive', 'true');
 
             // Read stored user data to decide active state of Window Bar button
-            if (this.windowBar) {
+            if (this.windowBar && (buttonsActive[3] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.windowBarButtonActive') === 'false') {
                     if (this.windowBarButton) this.windowBarButton.classList.remove(this.classSelected);
                     if (disableTransitions) {
@@ -855,10 +903,10 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.windowBarButtonActive', 'true');
                     if (this.windowBarButton) this.windowBarButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.windowBarButtonActive', 'true');
 
             // Read stored user data to decide active state of Members List button
-            if (this.membersList) {
+            if (this.membersList && (buttonsActive[4] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.membersListButtonActive') === 'false') {
                     if (this.membersListButton) this.membersListButton.classList.remove(this.classSelected);
                     if (disableTransitions) {
@@ -873,10 +921,10 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.membersListButtonActive', 'true');
                     if (this.membersListButton) this.membersListButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.membersListButtonActive', 'true');
 
             // Read stored user data to decide active state of User Area button
-            if (this.userArea) {
+            if (this.userArea && (buttonsActive[5] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.userAreaButtonActive') === 'false') {
                     if (this.userAreaButton) this.userAreaButton.classList.remove(this.classSelected);
                     if (disableTransitions) {
@@ -890,10 +938,10 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.userAreaButtonActive', 'true');
                     if (this.userAreaButton) this.userAreaButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.userAreaButtonActive', 'true');
 
             // Read stored user data to decide active state of Call Container button
-            if (document.querySelector('.' + this.classCallContainer)) {
+            if (document.querySelector('.' + this.classCallContainer) && (buttonsActive[6] || disabledButtonsStayCollapsed)) {
                 if (BdApi.getData('CollapsibleUI', 'cui.callContainerButtonActive') === 'false') {
                     if (this.callContainerButton) this.callContainerButton.classList.remove(this.classSelected);
                     if (document.querySelector('.' + this.classCallContainer)) {
@@ -911,7 +959,7 @@ module.exports = (() => {
                     BdApi.setData('CollapsibleUI', 'cui.callContainerButtonActive', 'true');
                     if (this.callContainerButton) this.callContainerButton.classList.add(this.classSelected);
                 }
-            }
+            } else BdApi.setData('CollapsibleUI', 'cui.callContainerButtonActive', 'true');
 
             // Apply transitions to UI elements
             if (!disableTransitions) {
@@ -919,12 +967,15 @@ module.exports = (() => {
                 // Handle resizing channel list
                 if (resizableChannelList) {
                     this.channelList.style.resize = 'horizontal';
+                    this.channelList.style.maxWidth = '80vw';
+
                     document.body.addEventListener('mousedown', function (){
                         cui.channelList.style.transition = 'none';
                     }, {signal: cui.eventListenerSignal});
                     document.body.addEventListener('mouseup', function (){
                         cui.channelList.style.transition = 'width ' + transitionSpeed + 'ms';
                     }, {signal: cui.eventListenerSignal});
+
                     this.channelList.addEventListener('contextmenu', function (event){
                         if(event.target !== event.currentTarget) return;
                         clearInterval(cui.channelListWidthChecker);
@@ -949,6 +1000,7 @@ module.exports = (() => {
                         }, 100);
                         event.preventDefault();
                     }, {signal: cui.eventListenerSignal});
+
                     this.channelListWidthChecker = setInterval(function(){
                         if ((!cui.isCollapsed[1]) || (BdApi.getData('CollapsibleUI', 'cui.channelListButtonActive') === 'true')) {
                             let oldChannelListWidth = channelListWidth;
@@ -1005,13 +1057,17 @@ module.exports = (() => {
             this.callContainerChecker = setInterval(function() {
                 if ((cui.callContainerExists && !(document.querySelector('.' + cui.classCallContainer))) || (document.querySelector('.' + cui.classCallContainer) && !(cui.callContainerExists)))
                     cui.initialize();
+                if (cui.callContainerExpanded != 'N/A') {
+                    if (cui.callContainerExpanded != document.querySelector('.' + cui.classCallContainer).style.maxHeight)
+                        cui.initialize();
+                }
             }, 100);
 
             // Implement dynamic uncollapse feature
             if (dynamicUncollapse && !disableTransitions) {
                 // Add event listener to document body to track cursor location & check if it is near collapsed elements
                 document.body.addEventListener('mousemove', function(event){
-                    
+
                     cui.mouseX = event.pageX;
                     cui.mouseY = event.pageY;
 
@@ -1036,7 +1092,7 @@ module.exports = (() => {
                             } catch {}
                         }
                     } catch {}
-                    
+
                     // Reiterate incompatibility fix between HSL and Dark Matter
                     if (this.isHSLLoaded && this.isDarkMatterLoaded) {
                         this.settingsContainerBase.style.width = '100%';
@@ -1755,6 +1811,7 @@ module.exports = (() => {
                 this.channelList.style.removeProperty('width');
                 this.channelList.style.removeProperty('transition');
                 this.channelList.style.removeProperty('resize');
+                this.channelList.style.removeProperty('max-width');
                 this.channelList.style.removeProperty('display');
             }
             if (this.serverList) {
@@ -1817,7 +1874,7 @@ module.exports = (() => {
                 this.toolBar.style.removeProperty('max-width');
                 this.toolBar.style.removeProperty('transition');
             }
-            
+
             if (this.settingsContainerBase) {
                 this.settingsContainerBase.style.removeProperty('left');
                 this.settingsContainerBase.style.removeProperty('width');
@@ -1837,13 +1894,15 @@ module.exports = (() => {
                 clearInterval(this.channelListWidthChecker);
             if (this.callContainerChecker)
                 clearInterval(this.callContainerChecker);
+            if (this.mutationReloader)
+                this.mutationReloader.disconnect();
         }
 
         // Initialize the plugin when it is enabled
         async start() {
 
             // Wait for current user session to finish loading
-            while (!document.body.hasAttribute('data-current-user-id')) {
+            while (!document.querySelector('.toolbar-3_r2xA')) {
                 await new Promise(resolve => requestAnimationFrame(resolve));
             }
 
@@ -1982,6 +2041,9 @@ module.exports = (() => {
             var groupButtons = new zps.SettingGroup('Button Customization');
 
             // Create button settings
+            var settingDisabledButtonsStayCollapsed = new zps.Switch('Disabled Buttons Stay Collapsed?',
+                                                                  'When enabled, elements will remain collapsed when their corresponding buttons are disabled',
+                                                                  BdApi.getData('CollapsibleUI', 'disabledButtonsStayCollapsed') === 'true');
             var settingServerList = new zps.Slider('Server List',
                                                    '[Default = 1, Disabled = 0] - Sets order index of the Server List button (far left panel)',
                                                    0,
@@ -2033,6 +2095,7 @@ module.exports = (() => {
                                                     {markers:[0,1,2,3,4,5,6,7], stickToMarkers: true, equidistant: true});
 
             // Append button settings to Button Customization subgroup
+            groupButtons.append(settingDisabledButtonsStayCollapsed);
             groupButtons.append(settingServerList);
             groupButtons.append(settingChannelList);
             groupButtons.append(settingUserArea);
@@ -2153,6 +2216,13 @@ module.exports = (() => {
             };
 
             // Register button settings onChange events
+            settingDisabledButtonsStayCollapsed.onChange = function(result) {
+                if (result)
+                    BdApi.setData('CollapsibleUI', 'disabledButtonsStayCollapsed', 'true');
+                else
+                    BdApi.setData('CollapsibleUI', 'disabledButtonsStayCollapsed', 'false');
+                BdApi.Plugins.get('CollapsibleUI').instance.initialize();
+            };
             settingServerList.onChange = function(result) {
                 var newButtonsOrder = BdApi.getData('CollapsibleUI', 'buttonsOrder').split(',').map(Number);
                 newButtonsOrder[0] = result;
