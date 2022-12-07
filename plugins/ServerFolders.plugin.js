@@ -2,7 +2,7 @@
  * @name ServerFolders
  * @author DevilBro
  * @authorId 278543574059057154
- * @version 7.0.3
+ * @version 7.0.9
  * @description Changes Discord's Folders, Servers open in a new Container, also adds extra Features to more easily organize, customize and manage your Folders
  * @invite Jx3TjNS
  * @donate https://www.paypal.me/MircoWittrien
@@ -13,20 +13,18 @@
  */
 
 module.exports = (_ => {
-	const config = {
-		"info": {
-			"name": "ServerFolders",
-			"author": "DevilBro",
-			"version": "7.0.3",
-			"description": "Changes Discord's Folders, Servers open in a new Container, also adds extra Features to more easily organize, customize and manage your Folders"
+	const changeLog = {
+		"fixed": {
+			"Scrolling": "Scrolling while extra column disabled works again"
 		}
 	};
-
+	
 	return !window.BDFDB_Global || (!window.BDFDB_Global.loaded && !window.BDFDB_Global.started) ? class {
-		getName () {return config.info.name;}
-		getAuthor () {return config.info.author;}
-		getVersion () {return config.info.version;}
-		getDescription () {return `The Library Plugin needed for ${config.info.name} is missing. Open the Plugin Settings to download it. \n\n${config.info.description}`;}
+		constructor (meta) {for (let key in meta) this[key] = meta[key];}
+		getName () {return this.name;}
+		getAuthor () {return this.author;}
+		getVersion () {return this.version;}
+		getDescription () {return `The Library Plugin needed for ${this.name} is missing. Open the Plugin Settings to download it. \n\n${this.description}`;}
 		
 		downloadLibrary () {
 			require("request").get("https://mwittrien.github.io/BetterDiscordAddons/Library/0BDFDB.plugin.js", (e, r, b) => {
@@ -39,7 +37,7 @@ module.exports = (_ => {
 			if (!window.BDFDB_Global || !Array.isArray(window.BDFDB_Global.pluginQueue)) window.BDFDB_Global = Object.assign({}, window.BDFDB_Global, {pluginQueue: []});
 			if (!window.BDFDB_Global.downloadModal) {
 				window.BDFDB_Global.downloadModal = true;
-				BdApi.showConfirmationModal("Library Missing", `The Library Plugin needed for ${config.info.name} is missing. Please click "Download Now" to install it.`, {
+				BdApi.showConfirmationModal("Library Missing", `The Library Plugin needed for ${this.name} is missing. Please click "Download Now" to install it.`, {
 					confirmText: "Download Now",
 					cancelText: "Cancel",
 					onCancel: _ => {delete window.BDFDB_Global.downloadModal;},
@@ -49,20 +47,22 @@ module.exports = (_ => {
 					}
 				});
 			}
-			if (!window.BDFDB_Global.pluginQueue.includes(config.info.name)) window.BDFDB_Global.pluginQueue.push(config.info.name);
+			if (!window.BDFDB_Global.pluginQueue.includes(this.name)) window.BDFDB_Global.pluginQueue.push(this.name);
 		}
 		start () {this.load();}
 		stop () {}
 		getSettingsPanel () {
 			let template = document.createElement("template");
-			template.innerHTML = `<div style="color: var(--header-primary); font-size: 16px; font-weight: 300; white-space: pre; line-height: 22px;">The Library Plugin needed for ${config.info.name} is missing.\nPlease click <a style="font-weight: 500;">Download Now</a> to install it.</div>`;
+			template.innerHTML = `<div style="color: var(--header-primary); font-size: 16px; font-weight: 300; white-space: pre; line-height: 22px;">The Library Plugin needed for ${this.name} is missing.\nPlease click <a style="font-weight: 500;">Download Now</a> to install it.</div>`;
 			template.content.firstElementChild.querySelector("a").addEventListener("click", this.downloadLibrary);
 			return template.content.firstElementChild;
 		}
-	} : (([Plugin, BDFDB]) => {
+	} : (([Plugin, BDFDB, meta]) => {
 		var _this;
 		var folderStates, folderReads, guildStates, currentGuild, forceCloseTimeout;
 		var folderConfigs = {}, customIcons = {};
+		
+		var GuildItemWrapperComponent;
 
 		const folderIcons = [
 			{openicon: `<path d="M 200,390 H 955 L 795,770 H 200 Z" fill="REPLACE_FILL2"/><path d="M 176.6,811 C 163.9,811 155.1,802.6 155,784.7 V 212.9 C 157.9,190.5 169,179.8 195.9,176 h 246 c 20.3,3.2 34.5,18.7 41,28.6 C 494.9,228.3 492.9,240.4 494,266 l 313.6,1.3 c 17.6,0.4 23.3,3.7 23.3,3.7 8.6,4.2 14.8,10.7 19,19.5 C 856.3,319.5 854,360 854,360 h 108.9 c 4.4,2.4 13.7,1.2 11.8,23.5 L 815.8,789.4 c -2.1,5.2 -12.5,13.6 -18.7,16.1 -6.8,2.7 -18.5,5.5 -23.9,5.5 z M 767,759 897,430 H 360 L 230,759 Z" fill="REPLACE_FILL1"/>`,
@@ -89,13 +89,16 @@ module.exports = (_ => {
 			render() {
 				let closing = this.props.closing;
 				delete this.props.closing;
-				let folders = Array.from(BDFDB.LibraryModules.FolderUtils.getExpandedFolders()).map(folderId => BDFDB.LibraryModules.FolderStore.getGuildFolderById(folderId)).filter(folder => folder && folder.guildIds);
+				let folders = Array.from(BDFDB.LibraryStores.ExpandedGuildFolderStore.getExpandedFolders()).map(folderId => BDFDB.LibraryModules.SortedGuildUtils.getGuildFolderById(folderId)).filter(folder => folder && folder.guildIds);
 				this.props.folders = folders.length || closing ? folders : (this.props.folders || []);
 				BDFDB.TimeUtils.clear(this._rerenderTimeout);
-				if (!folders.length && this.props.folders.length && !closing) this._rerenderTimeout = BDFDB.TimeUtils.timeout(_ => {
+				if (!GuildItemWrapperComponent && folders.length || !folders.length && this.props.folders.length && !closing) this._rerenderTimeout = BDFDB.TimeUtils.timeout(_ => {
 					this.props.closing = true;
 					BDFDB.ReactUtils.forceUpdate(this);
 				}, 300);
+				
+				BDFDB.DOMUtils.toggleClass(document.body, BDFDB.disCN._serverfoldersfoldercontentisopen, !(!folders.length || closing));
+				
 				return BDFDB.ReactUtils.createElement("nav", {
 					className: BDFDB.DOMUtils.formatClassName(BDFDB.disCN.guildswrapper, BDFDB.disCN.guilds, this.props.isAppFullscreen && BDFDB.disCN.guildswrapperhidden, this.props.themeOverride && BDFDB.disCN.themedark, BDFDB.disCN._serverfoldersfoldercontent, (!folders.length || closing) && BDFDB.disCN._serverfoldersfoldercontentclosed),
 					children: BDFDB.ReactUtils.createElement("ul", {
@@ -105,121 +108,145 @@ module.exports = (_ => {
 						className: BDFDB.disCN.guildstree,
 						children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Scrollers.None, {
 							className: BDFDB.disCN.guildsscroller,
-							children: this.props.folders.map(folder => {
-								let data = _this.getFolderConfig(folder.folderId);
-								let folderIcon = null;
-								if (_this.settings.addFolderIcon) {
-									let folderIcons = _this.loadAllIcons();
-									folderIcon = folderIcons[data.iconID] ? (!folderIcons[data.iconID].customID ? _this.createBase64SVG(folderIcons[data.iconID].openicon, data.color1, data.color2) : folderIcons[data.iconID].openicon) : null;
-									folderIcon = folderIcon ? BDFDB.ReactUtils.createElement("div", {
-										className: BDFDB.disCN.guildfoldericonwrapper,
-										style: {background: `url(${folderIcon}) center/cover no-repeat`}
-									}) : BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.SvgIcon, {
-										name: BDFDB.LibraryComponents.SvgIcon.Names.FOLDER,
-										color: BDFDB.ColorUtils.convert(folder.folderColor, "RGB") || "var(--bdfdb-blurple)"
-									});
-								}
-								return [
-									folderIcon && BDFDB.ReactUtils.createElement("div", {
-										className: BDFDB.disCN.guildouter,
-										children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.GuildComponents.BlobMask, {
-											children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Clickable, {
-												className: BDFDB.disCN.guildfolder,
-												children: BDFDB.ReactUtils.createElement("div", {
-													className: BDFDB.disCN.guildfoldericonwrapper,
-													children: BDFDB.ReactUtils.createElement("div", {
-														className: BDFDB.disCN.guildfoldericonwrapperexpanded,
-														children: folderIcon
-													})
-												})
+							children: BDFDB.ReactUtils.createElement("div", {
+								"aria-label": BDFDB.LanguageUtils.LanguageStrings.SERVERS,
+								children: GuildItemWrapperComponent && this.props.folders.map(folder => {
+									let data = _this.getFolderConfig(folder.folderId);
+									let folderIcon = null;
+									if (_this.settings.general.addFolderIcon) {
+										let folderIcons = _this.loadAllIcons();
+										folderIcon = folderIcons[data.iconID] ? (!folderIcons[data.iconID].customID ? _this.createBase64SVG(folderIcons[data.iconID].openicon, data.color1, data.color2) : folderIcons[data.iconID].openicon) : null;
+										folderIcon = folderIcon ? BDFDB.ReactUtils.createElement("div", {
+											className: BDFDB.disCN.guildfoldericonwrapper,
+											style: {background: `url(${folderIcon}) center/cover no-repeat`}
+										}) : BDFDB.ReactUtils.createElement("div", {
+											className: BDFDB.disCN.guildfoldericonwrapperexpanded,
+											children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.SvgIcon, {
+												name: BDFDB.LibraryComponents.SvgIcon.Names.FOLDER,
+												color: BDFDB.ColorUtils.convert(folder.folderColor, "RGB") || "var(--bdfdb-blurple)"
 											})
-										})
-									}),
-									folder.guildIds.map(guildId => {
-										return [
-											this.draggedGuild == guildId ? null : BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.GuildComponents.Guild, {
-												guild: BDFDB.LibraryModules.GuildStore.getGuild(guildId),
-												state: true,
-												list: true,
-												tooltipConfig: Object.assign({
-													offset: 12
-												}, data.copyTooltipColor && {
-													backgroundColor: data.color3,
-													fontColor: data.color4,
-												}),
-												onClick: event => {
-													if (BDFDB.ListenerUtils.isPressed(46)) {
-														BDFDB.ListenerUtils.stopEvent(event);
-														_this.removeGuildFromFolder(folder.folderId, guildId);
-													}
-													else {
-														if (_this.settings.general.closeAllFolders) {
-															for (let openFolderId of BDFDB.LibraryModules.FolderUtils.getExpandedFolders()) if (openFolderId != folder.folderId || !_this.settings.general.forceOpenFolder) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(openFolderId);
-														}
-														else if (_this.settings.general.closeTheFolder && !_this.settings.general.forceOpenFolder && BDFDB.LibraryModules.FolderUtils.isFolderExpanded(folder.folderId)) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(folder.folderId);
-														else BDFDB.ReactUtils.forceUpdate(this);
-													}
-												},
-												onMouseDown: (event, instance) => {
-													event = event.nativeEvent || event;
-													let mouseMove = event2 => {
-														if (Math.sqrt((event.pageX - event2.pageX)**2) > 20 || Math.sqrt((event.pageY - event2.pageY)**2) > 20) {
-															BDFDB.ListenerUtils.stopEvent(event);
-															this.draggedGuild = guildId;
-															let dragPreview = _this.createDragPreview(BDFDB.ReactUtils.findDOMNode(instance).cloneNode(true), event2);
-															BDFDB.ReactUtils.forceUpdate(this);
-															document.removeEventListener("mousemove", mouseMove);
-															document.removeEventListener("mouseup", mouseUp);
-															let dragging = event3 => {
-																_this.updateDragPreview(dragPreview, event3);
-																let placeholder = BDFDB.DOMUtils.getParent(BDFDB.dotCN._serverfoldersguildplaceholder, event3.target);
-																let hoveredGuild = (BDFDB.ReactUtils.findValue(BDFDB.DOMUtils.getParent(BDFDB.dotCNS._serverfoldersfoldercontent + BDFDB.dotCN.guildouter, placeholder ? placeholder.previousSibling : event3.target), "guild", {up: true}) || {}).id;
-																if (hoveredGuild) {
-																	let hoveredGuildFolder = BDFDB.GuildUtils.getFolder(hoveredGuild);
-																	if (!hoveredGuildFolder || hoveredGuildFolder.folderId != folder.folderId) hoveredGuild = null;
-																}
-																let update = hoveredGuild != this.hoveredGuild;
-																if (hoveredGuild) this.hoveredGuild = hoveredGuild;
-																else delete this.hoveredGuild; 
-																if (update) BDFDB.ReactUtils.forceUpdate(this);
-															};
-															let releasing = event3 => {
-																BDFDB.ListenerUtils.stopEvent(event3);
-																BDFDB.DOMUtils.remove(dragPreview);
-																if (this.hoveredGuild) {
-																	let guildIds = [].concat(folder.guildIds);
-																	BDFDB.ArrayUtils.remove(guildIds, this.draggedGuild, true);
-																	guildIds.splice(guildIds.indexOf(this.hoveredGuild) + 1, 0, this.draggedGuild);
-																	_this.updateFolder(Object.assign({}, folder, {guildIds}));
-																}
-																delete this.draggedGuild;
-																delete this.hoveredGuild;
-																BDFDB.ReactUtils.forceUpdate(this);
-																document.removeEventListener("mousemove", dragging);
-																document.removeEventListener("mouseup", releasing);
-															};
-															document.addEventListener("mousemove", dragging);
-															document.addEventListener("mouseup", releasing);
-														}
-													};
-													let mouseUp = _ => {
-														document.removeEventListener("mousemove", mouseMove);
-														document.removeEventListener("mouseup", mouseUp);
-													};
-													document.addEventListener("mousemove", mouseMove);
-													document.addEventListener("mouseup", mouseUp);
-												}
+										});
+									}
+									return BDFDB.ReactUtils.createElement("div", {
+										className: BDFDB.disCN.guildfolderwrapper,
+										style: {"--folder-color": folder.folderColor ? BDFDB.ColorUtils.convert(folder.folderColor, "RGB") : null},
+										children: [
+											_this.settings.general.addFolderBackground && BDFDB.ReactUtils.createElement("span", {
+												className: BDFDB.disCN.guildfolderexpandedbackground
 											}),
-											this.hoveredGuild != guildId ? null : BDFDB.ReactUtils.createElement("div", {
-												className: BDFDB.disCNS.guildouter + BDFDB.disCN._serverfoldersguildplaceholder,
+											folderIcon && BDFDB.ReactUtils.createElement("div", {
+												className: BDFDB.disCN.guildouter,
 												children: BDFDB.ReactUtils.createElement("div", {
-													children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.GuildComponents.DragPlaceholder, {})
+													className: BDFDB.disCN.guildfolder,
+													children: folderIcon
+												})
+											}),
+											BDFDB.ReactUtils.createElement("ul", {
+												role: "group",
+												children: folder.guildIds.map(guildId => {
+													let guildIstance;
+													return [
+														this.draggedGuild == guildId ? null : BDFDB.ReactUtils.createElement("div", {
+															ref: instance => guildIstance = instance,
+															children: BDFDB.ReactUtils.createElement(GuildItemWrapperComponent, {
+																guildNode: {
+																	children: [],
+																	id: guildId,
+																	parentId: folder.folderId,
+																	type: "guild",
+																	unavailable: false
+																}
+															}),
+															onClick: event => {
+																if (BDFDB.ListenerUtils.isPressed(46)) {
+																	BDFDB.ListenerUtils.stopEvent(event);
+																	_this.removeGuildFromFolder(folder.folderId, guildId);
+																}
+																else {
+																	if (_this.settings.general.closeAllFolders) {
+																		for (let openFolderId of BDFDB.LibraryStores.ExpandedGuildFolderStore.getExpandedFolders()) if (openFolderId != folder.folderId || !_this.settings.general.forceOpenFolder) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(openFolderId);
+																	}
+																	else if (_this.settings.general.closeTheFolder && !_this.settings.general.forceOpenFolder && BDFDB.LibraryStores.ExpandedGuildFolderStore.isFolderExpanded(folder.folderId)) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(folder.folderId);
+																	else BDFDB.ReactUtils.forceUpdate(this);
+																}
+															},
+															onMouseDown: event => {
+																event = event.nativeEvent || event;
+																let mouseMove = event2 => {
+																	if (Math.sqrt((event.pageX - event2.pageX)**2) > 20 || Math.sqrt((event.pageY - event2.pageY)**2) > 20) {
+																		BDFDB.ListenerUtils.stopEvent(event);
+																		this.draggedGuild = guildId;
+																		let dragPreview = _this.createDragPreview(BDFDB.ReactUtils.findDOMNode(guildIstance).cloneNode(true), event2);
+																		BDFDB.ReactUtils.forceUpdate(this);
+																		document.removeEventListener("mousemove", mouseMove);
+																		document.removeEventListener("mouseup", mouseUp);
+																		let dragging = event3 => {
+																			_this.updateDragPreview(dragPreview, event3);
+																			let placeholder = BDFDB.DOMUtils.getParent(BDFDB.dotCN._serverfoldersguildplaceholder, event3.target);
+																			let hoveredGuild = (BDFDB.ReactUtils.findValue(BDFDB.DOMUtils.getParent(BDFDB.dotCNS._serverfoldersfoldercontent + BDFDB.dotCN.guildouter, placeholder ? placeholder.previousSibling : event3.target), "guild", {up: true}) || {}).id;
+																			if (hoveredGuild) {
+																				let hoveredGuildFolder = BDFDB.GuildUtils.getFolder(hoveredGuild);
+																				if (!hoveredGuildFolder || hoveredGuildFolder.folderId != folder.folderId) hoveredGuild = null;
+																			}
+																			let update = hoveredGuild != this.hoveredGuild;
+																			if (hoveredGuild) this.hoveredGuild = hoveredGuild;
+																			else delete this.hoveredGuild; 
+																			if (update) BDFDB.ReactUtils.forceUpdate(this);
+																		};
+																		let releasing = event3 => {
+																			BDFDB.ListenerUtils.stopEvent(event3);
+																			BDFDB.DOMUtils.remove(dragPreview);
+																			if (this.hoveredGuild) {
+																				let guildIds = [].concat(folder.guildIds);
+																				BDFDB.ArrayUtils.remove(guildIds, this.draggedGuild, true);
+																				guildIds.splice(guildIds.indexOf(this.hoveredGuild) + 1, 0, this.draggedGuild);
+																				_this.updateFolder(Object.assign({}, folder, {guildIds}));
+																			}
+																			delete this.draggedGuild;
+																			delete this.hoveredGuild;
+																			BDFDB.ReactUtils.forceUpdate(this);
+																			document.removeEventListener("mousemove", dragging);
+																			document.removeEventListener("mouseup", releasing);
+																		};
+																		document.addEventListener("mousemove", dragging);
+																		document.addEventListener("mouseup", releasing);
+																	}
+																};
+																let mouseUp = _ => {
+																	document.removeEventListener("mousemove", mouseMove);
+																	document.removeEventListener("mouseup", mouseUp);
+																};
+																document.addEventListener("mousemove", mouseMove);
+																document.addEventListener("mouseup", mouseUp);
+															}
+														}),
+														this.hoveredGuild != guildId ? null : BDFDB.ReactUtils.createElement("div", {
+															className: BDFDB.disCNS.guildouter + BDFDB.disCN._serverfoldersguildplaceholder,
+															children: BDFDB.ReactUtils.createElement("div", {
+																children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Mask, {
+																	mask: BDFDB.LibraryComponents.Mask.Masks.SQUIRCLE,
+																	className: BDFDB.disCN.guildplaceholdermask,
+																	width: 48,
+																	height: 48,
+																	style: {display:"block"},
+																	children: BDFDB.ReactUtils.createElement("div", {
+																		className: BDFDB.disCN.guildplaceholder
+																	})
+																})
+															})
+														})
+													]
 												})
 											})
 										]
 									})
-								];
-							}).filter(n => n).reduce((r, a) => r.concat(a, _this.settings.general.addSeparators ? BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.GuildComponents.Separator, {}) : null), [0]).slice(1, -1).flat(10).filter(n => n)
+								}).filter(n => n).reduce((r, a) => r.concat(a, _this.settings.general.addSeparators ? BDFDB.ReactUtils.createElement("div", {
+									className: BDFDB.disCN.guildouter,
+									children: BDFDB.ReactUtils.createElement("div", {
+										className: BDFDB.disCN.guildseparator
+									})
+								}) : null), [0]).slice(1, -1).flat(10).filter(n => n)
+							})
 						})
 					})
 				});
@@ -287,9 +314,9 @@ module.exports = (_ => {
 				BDFDB.TimeUtils.clear(this._previewInterval);
 			}
 			checkImage(base64OrUrl, callback) {
-				if (base64OrUrl.indexOf("https://") == 0 || base64OrUrl.indexOf("http://") == 0) BDFDB.LibraryRequires.request(base64OrUrl.trim(), {encoding: null}, (error, response, body) => {
+				if (base64OrUrl.indexOf("https://") == 0 || base64OrUrl.indexOf("http://") == 0) BDFDB.LibraryRequires.request(base64OrUrl.trim(), {agentOptions: {rejectUnauthorized: false}, headers: {"Content-Type": "application/json"}}, (error, response, body) => {
 					if (response && response.headers["content-type"] && response.headers["content-type"].indexOf("image") != -1 && response.headers["content-type"] != "image/gif") {
-						this.resizeImage("data:" + response.headers["content-type"] + ";base64," + (new Buffer(body).toString("base64")), callback);
+						this.resizeImage("data:" + response.headers["content-type"] + ";base64," + Buffer.from(body).toString("base64"), callback);
 					}
 					else callback(base64OrUrl);
 				});
@@ -392,7 +419,7 @@ module.exports = (_ => {
 													BDFDB.DataUtils.save(customIcons, _this, "customicons");
 													this.props.open = null;
 													this.props.closed = null;
-													BDFDB.PatchUtils.forceAllUpdates(_this, "GuildFolderSettingsModal");
+													BDFDB.PatchUtils.forceAllUpdates(_this, "FolderSettingsModal");
 													BDFDB.NotificationUtils.toast("Custom Icon was added to Selection", {type: "success"});
 												});
 											})
@@ -417,26 +444,34 @@ module.exports = (_ => {
 				
 				this.defaults = {
 					general: {
-						closeOtherFolders:	{value: false, 	description: "Closes other Folders when opening a Folder"},
-						closeTheFolder:		{value: false, 	description: "Closes the Folder when selecting a Server"},
-						closeAllFolders:	{value: false, 	description: "Closes all Folders when selecting a Server"},
-						forceOpenFolder:	{value: false, 	description: "Forces a Folder to open when switching to a Server of that Folder"},
-						showCountBadge:		{value: true, 	description: "Displays Badge for Amount of Servers in a Folder"},
-						extraColumn:		{value: true, 	description: "Moves the Servers from opened Folders into an extra Column"},
-						addSeparators:		{value: true, 	description: "Adds Separators between Servers of different Folders in extra Column"},
-						addFolderIcon:		{value: false, 	description: "Adds the Folder Icon on the top of the Server List in the extra Column"}
+						closeOtherFolders:		{value: false, 	description: "Closes other Folders when opening a Folder"},
+						closeTheFolder:			{value: false, 	description: "Closes the Folder when selecting a Server"},
+						closeAllFolders:		{value: false, 	description: "Closes all Folders when selecting a Server"},
+						forceOpenFolder:		{value: false, 	description: "Forces a Folder to open when switching to a Server of that Folder"},
+						showCountBadge:			{value: true, 	description: "Displays Badge for Amount of Servers in a Folder"},
+						extraColumn:			{value: true, 	description: "Moves the Servers from opened Folders into an extra Column"},
+						addSeparators:			{value: true, 	description: "Adds Separators between Servers of different Folders in extra Column"},
+						addFolderIcon:			{value: false, 	description: "Adds the Folder Icon on the top of the Server List in the extra Column"},
+						addFolderBackground:	{value: false, 	description: "Adds a Folder Background behind a Group of Servers in the extra Column"}
 					}
 				};
 			
-				this.patchedModules = {
-					after: {
-						AppView: "default",
-						Guilds: "type",
-						FolderItem: "default",
-						FolderHeader: "default",
-						GuildItem: "type",
-						GuildFolderSettingsModal: ["componentDidMount", "render"]
-					}
+				this.modulePatches = {
+					before: [
+						"FolderItem",
+						"GuildItemWrapper",
+						"GuildsBar"
+					],
+					after: [
+						"FolderHeader",
+						"FolderSettingsModal",
+						"GuildItem",
+						"GuildsBar",
+						"ListItemTooltip"
+					],
+					componentDidMount: [
+						"FolderSettingsModal"
+					]
 				};
 				
 				this.css = `
@@ -495,17 +530,25 @@ module.exports = (_ => {
 					${BDFDB.dotCN._serverfoldersfoldercontent + BDFDB.dotCN._serverfoldersfoldercontentclosed} {
 						width: 0 !important;
 					}
+					${BDFDB.dotCNS._serverfoldershassidebar + BDFDB.dotCN.guildfolderwrapper} > [role="group"],
+					${BDFDB.dotCNS._serverfoldershassidebar + BDFDB.dotCN.guildfolderexpandedbackground} {
+						display: none !important;
+					}
+					${BDFDB.dotCNS._serverfoldersfoldercontent + BDFDB.dotCN.guildfolder} {
+						cursor: default;
+						border-radius: 100%;
+					}
 				`;
 			}
 			
 			onStart () {
-				currentGuild = BDFDB.LibraryModules.LastGuildStore.getGuildId();
+				currentGuild = BDFDB.LibraryStores.SelectedGuildStore.getGuildId();
 				
 				let forceClosing = false;
 				BDFDB.PatchUtils.patch(this, BDFDB.LibraryModules.GuildUtils, "toggleGuildFolderExpand", {after: e => {
 					if (this.settings.general.closeOtherFolders && !forceClosing) {
 						forceClosing = true;
-						for (let openFolderId of BDFDB.LibraryModules.FolderUtils.getExpandedFolders()) if (openFolderId != e.methodArguments[0]) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(openFolderId);
+						for (let openFolderId of BDFDB.LibraryStores.ExpandedGuildFolderStore.getExpandedFolders()) if (openFolderId != e.methodArguments[0]) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(openFolderId);
 						forceClosing = false;
 					}
 				}});
@@ -521,8 +564,8 @@ module.exports = (_ => {
 
 			onSwitch () {
 				if (typeof BDFDB === "object" && BDFDB.loaded && this.settings.general.forceOpenFolder) {
-					let folder = BDFDB.GuildUtils.getFolder(BDFDB.LibraryModules.LastGuildStore.getGuildId());
-					if (folder && !BDFDB.LibraryModules.FolderUtils.isFolderExpanded(folder.folderId)) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(folder.folderId);
+					let folder = BDFDB.GuildUtils.getFolder(BDFDB.LibraryStores.SelectedGuildStore.getGuildId());
+					if (folder && !BDFDB.LibraryStores.ExpandedGuildFolderStore.isFolderExpanded(folder.folderId)) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(folder.folderId);
 				}
 			}
 			
@@ -580,9 +623,9 @@ module.exports = (_ => {
 			onGuildContextMenu (e) {
 				if (document.querySelector(BDFDB.dotCN.modalwrapper)) return;
 				if (e.instance.props.guild) {
-					let folders = BDFDB.LibraryModules.FolderStore.guildFolders.filter(n => n.folderId);
+					let folders = BDFDB.LibraryModules.SortedGuildUtils.guildFolders.filter(n => n.folderId);
 					let folder = BDFDB.GuildUtils.getFolder(e.instance.props.guild.id);
-					let unfolderedGuilds = BDFDB.LibraryModules.FolderStore.getSortedGuilds().filter(n => !n.folderId).map(n => n.guilds[0]).filter(n => n);
+					let unfolderedGuilds = BDFDB.LibraryModules.SortedGuildUtils.getSortedGuilds().filter(n => !n.folderId).map(n => n.guilds[0]).filter(n => n);
 					let [children, index] = BDFDB.ContextMenuUtils.findItem(e.returnvalue, {id: "devmode-copy-id", group: true});
 					children.splice(index > -1 ? index : children.length, 0, BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuGroup, {
 						children: BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
@@ -592,7 +635,7 @@ module.exports = (_ => {
 								BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
 									label: this.labels.serversubmenu_removefromfolder,
 									id: BDFDB.ContextMenuUtils.createItemId(this.name, "remove-from-folder"),
-									color: BDFDB.LibraryComponents.MenuItems.Colors.DANGER,
+									color: BDFDB.DiscordConstants.MenuItemColors.DANGER,
 									action: _ => this.removeGuildFromFolder(folder.folderId, e.instance.props.guild.id)
 								})
 							] : [
@@ -616,14 +659,10 @@ module.exports = (_ => {
 						})
 					}));
 				}
-			}
-			
-			onGuildFolderContextMenu (e) {
-				if (document.querySelector(BDFDB.dotCN.modalwrapper)) return;
 				if (e.instance.props.target && e.instance.props.folderId) {
-					let folder = BDFDB.LibraryModules.FolderStore.getGuildFolderById(e.instance.props.folderId);
+					let folder = BDFDB.LibraryModules.SortedGuildUtils.getGuildFolderById(e.instance.props.folderId);
 					let data = this.getFolderConfig(e.instance.props.folderId);
-					let muted = data.muteFolder && folder.guildIds.every(guildid => BDFDB.LibraryModules.MutedUtils.isGuildOrCategoryOrChannelMuted(guildid));
+					let muted = data.muteFolder && folder.guildIds.every(guildid => BDFDB.LibraryStores.UserGuildSettingsStore.isGuildOrCategoryOrChannelMuted(guildid));
 					if (data.muteFolder != muted) {
 						data.muteFolder = muted;
 						BDFDB.DataUtils.save(data, this, "folders", e.instance.props.folderId);
@@ -646,7 +685,7 @@ module.exports = (_ => {
 							action: state => {
 								data.muteFolder = state;
 								BDFDB.DataUtils.save(data, this, "folders", e.instance.props.folderId);
-								for (let guildId of folder.guildIds) if (BDFDB.LibraryModules.MutedUtils.isGuildOrCategoryOrChannelMuted(guildId) != state) BDFDB.LibraryModules.GuildNotificationsUtils.updateGuildNotificationSettings(guildId, {muted: state, suppress_everyone: state, suppress_roles: state});
+								for (let guildId of folder.guildIds) if (BDFDB.LibraryStores.UserGuildSettingsStore.isGuildOrCategoryOrChannelMuted(guildId) != state) BDFDB.LibraryModules.GuildNotificationsUtils.updateGuildNotificationSettings(guildId, {muted: state, suppress_everyone: state, suppress_roles: state});
 							}
 						})
 					}));
@@ -654,7 +693,7 @@ module.exports = (_ => {
 						children: BDFDB.ContextMenuUtils.createItem(BDFDB.LibraryComponents.MenuItems.MenuItem, {
 							label: this.labels.foldercontext_removefolder,
 							id: BDFDB.ContextMenuUtils.createItemId(this.name, "remove-folder"),
-							color: BDFDB.LibraryComponents.MenuItems.Colors.DANGER,
+							color: BDFDB.DiscordConstants.MenuItemColors.DANGER,
 							action: event => {
 								BDFDB.ModalUtils.confirm(this, this.labels.foldercontext_removefolder_confirm.replace("{{var0}}", folder.folderName ? `"${folder.folderName}"` : "").trim(), _ => {
 									this.removeFolder(e.instance.props.folderId);
@@ -665,19 +704,11 @@ module.exports = (_ => {
 				}
 			}
 
-			processAppView (e) {
-				if (this.settings.general.extraColumn) {
-					let [children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {props: [["className", BDFDB.disCN.guilds]]});
-					if (index > -1) children.splice(index + 1, 0, BDFDB.ReactUtils.createElement(FolderGuildContentComponent, {
-						isAppFullscreen: BDFDB.LibraryModules.VoiceChannelUtils.isFullscreenInContext(),
-						themeOverride: BDFDB.LibraryModules.LocalSettingsStore.darkSidebar
-					}, true));
-				}
-			}
-
-			processGuilds (e) {
-				if (this.settings.general.extraColumn) {
-					let fullscreen = BDFDB.LibraryModules.VoiceChannelUtils.isFullscreenInContext();
+			processGuildsBar (e) {
+				if (!this.settings.general.extraColumn) return;
+				if (!e.returnvalue) e.instance.props.className = BDFDB.DOMUtils.formatClassName(e.instance.props.className, BDFDB.disCN._serverfoldershassidebar);
+				else {
+					let fullscreen = BDFDB.LibraryStores.ChannelRTCStore.isFullscreenInContext();
 					if (folderGuildContent && (fullscreen != folderGuildContent.props.isAppFullscreen || e.instance.props.themeOverride != folderGuildContent.props.themeOverride)) {
 						folderGuildContent.props.isAppFullscreen = fullscreen;
 						folderGuildContent.props.themeOverride = e.instance.props.themeOverride;
@@ -687,31 +718,36 @@ module.exports = (_ => {
 					if (topBar) {
 						let topIsVisible = topBar.props.isVisible;
 						topBar.props.isVisible = BDFDB.TimeUtils.suppress((...args) => {
-							let ids = BDFDB.LibraryModules.FolderStore.guildFolders.filter(n => n.folderId).map(n => n.guildIds).flat(10);
+							let ids = BDFDB.LibraryModules.SortedGuildUtils.guildFolders.filter(n => n.folderId).map(n => n.guildIds).flat(10);
 							args[2] = args[2].filter(id => !ids.includes(id));
-							return topIsVisible(...args) || BDFDB.LibraryModules.UnreadGuildUtils.getMentionCount(args[0]) == 0;
+							return topIsVisible(...args) || BDFDB.LibraryStores.GuildReadStateStore.getMentionCount(args[0]) == 0;
 						}, "Error in isVisible of Top Bar in Guild List!");
 					}
 					let bottomBar = BDFDB.ReactUtils.findChild(e.returnvalue, {props: [["className", BDFDB.disCN.guildswrapperunreadmentionsbarbottom]]});
 					if (bottomBar) {
 						let bottomIsVisible = bottomBar.props.isVisible;
 						bottomBar.props.isVisible = BDFDB.TimeUtils.suppress((...args) => {
-							let ids = BDFDB.LibraryModules.FolderStore.guildFolders.filter(n => n.folderId).map(n => n.guildIds).flat(10);
+							let ids = BDFDB.LibraryModules.SortedGuildUtils.guildFolders.filter(n => n.folderId).map(n => n.guildIds).flat(10);
 							args[2] = args[2].filter(id => !ids.includes(id));
-							return bottomIsVisible(...args) || BDFDB.LibraryModules.UnreadGuildUtils.getMentionCount(args[0]) == 0;
+							return bottomIsVisible(...args) || BDFDB.LibraryStores.GuildReadStateStore.getMentionCount(args[0]) == 0;
 						}, "Error in isVisible of Bottom Bar in Guild List!");
 					}
+					e.returnvalue = [
+						e.returnvalue,
+						BDFDB.ReactUtils.createElement(FolderGuildContentComponent, {
+							isAppFullscreen: BDFDB.LibraryStores.ChannelRTCStore.isFullscreenInContext(),
+							themeOverride: BDFDB.LibraryStores.AccessibilityStore.darkSidebar
+						}, true)
+					].flat(10);
 				}
 			}
 			
 			processFolderItem (e) {
 				if (!e.instance.props.folderNode) return;
-				let expandedFolders = BDFDB.LibraryModules.FolderUtils.getExpandedFolders();
-				if (expandedFolders.size) BDFDB.DOMUtils.addClass(document.body, BDFDB.disCN._serverfoldersfoldercontentisopen);
-				else BDFDB.DOMUtils.removeClassFromDOM(BDFDB.disCN._serverfoldersfoldercontentisopen);
 				
 				let data = this.getFolderConfig(e.instance.props.folderNode.id);
-				if (data.muteFolder) for (let guildId of e.instance.props.folderNode.children.map(n => n.id)) if (!BDFDB.LibraryModules.MutedUtils.isGuildOrCategoryOrChannelMuted(guildId)) BDFDB.LibraryModules.GuildNotificationsUtils.updateGuildNotificationSettings(guildId, {muted: true, suppress_everyone: true});
+				
+				if (data.muteFolder) for (let guildId of e.instance.props.folderNode.children.map(n => n.id)) if (!BDFDB.LibraryStores.UserGuildSettingsStore.isGuildOrCategoryOrChannelMuted(guildId)) BDFDB.LibraryModules.GuildNotificationsUtils.updateGuildNotificationSettings(guildId, {muted: true, suppress_everyone: true});
 				
 				let state = this.getState(e.instance);
 				if (folderStates[e.instance.props.folderNode.id] && !BDFDB.equals(state, folderStates[e.instance.props.folderNode.id])) {
@@ -724,36 +760,18 @@ module.exports = (_ => {
 					BDFDB.ReactUtils.forceUpdate(folderGuildContent);
 				}
 				folderStates[e.instance.props.folderNode.id] = state;
-				
-				let [tooltipParent, tooltipIndex] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: ["ListItemTooltip", "BDFDB_TooltipContainer"]});
-				if (tooltipIndex > -1) tooltipParent[tooltipIndex] = BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TooltipContainer, {
-					text: e.instance.props.folderNode.name || e.instance.props.defaultFolderName,
-					tooltipConfig: {
-						type: "right",
-						list: true,
-						offset: 12,
-						backgroundColor: data.color3,
-						fontColor: data.color4
-					},
-					children: tooltipParent[tooltipIndex].props.children
-				});
-				if (this.settings.general.extraColumn) {
-					e.returnvalue.props.children[0] = null;
-					e.returnvalue.props.children[2] = BDFDB.ReactUtils.createElement("div", {
-						children: e.returnvalue.props.children[2],
-						style: {display: "none"}
-					});
-				}
 			}
 			
 			processFolderHeader (e) {
 				if (!e.instance.props.folderNode) return;
+				
 				let data = this.getFolderConfig(e.instance.props.folderNode.id);
+				
 				if (e.instance.props.expanded || data.useCloseIcon) {
 					let folderIcons = this.loadAllIcons(), iconType = e.instance.props.expanded ? "openicon" : "closedicon";
 					let icon = folderIcons[data.iconID] ? (!folderIcons[data.iconID].customID ? this.createBase64SVG(folderIcons[data.iconID][iconType], data.color1, data.color2) : folderIcons[data.iconID][iconType]) : null;
 					if (icon) {
-						let [children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: "FolderIconContent"});
+						let [children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: "FolderIcon"});
 						if (index > -1) children[index] = BDFDB.ReactUtils.createElement("div", {
 							className: BDFDB.disCN.guildfoldericonwrapper,
 							style: {background: `url(${icon}) center/cover no-repeat`}
@@ -763,7 +781,7 @@ module.exports = (_ => {
 				if (this.settings.general.showCountBadge) {
 					let mask = BDFDB.ReactUtils.findChild(e.returnvalue, {name: "BlobMask"});
 					if (mask) {
-						mask.props.upperLeftBadgeWidth = BDFDB.LibraryComponents.Badges.getBadgeWidthForValue(e.instance.props.folderNode.children.length);
+						mask.props.upperLeftBadgeWidth = BDFDB.LibraryComponents.Badges.NumberBadge.prototype.getBadgeWidthForValue(e.instance.props.folderNode.children.length);
 						mask.props.upperLeftBadge = BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Badges.NumberBadge, {
 							count: e.instance.props.folderNode.children.length,
 							style: {backgroundColor: "var(--bdfdb-blurple)"}
@@ -772,14 +790,37 @@ module.exports = (_ => {
 				}
 			}
 			
+			processListItemTooltip (e) {
+				let folderNodeChild = BDFDB.ReactUtils.findChild(e.instance, {filter: n => n && n.props && n.props.folderNode});
+				if (!folderNodeChild) return;
+				
+				let data = this.getFolderConfig(folderNodeChild.props.folderNode.id);
+				
+				e.returnvalue = BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TooltipContainer, {
+					text: folderNodeChild.props.folderNode.name || folderNodeChild.props.tooltipName,
+					tooltipConfig: {
+						type: "right",
+						list: true,
+						offset: 12,
+						backgroundColor: data.color3,
+						fontColor: data.color4
+					},
+					children: e.returnvalue.props.children
+				});
+			}
+			
+			processGuildItemWrapper (e) {
+				if (e.component) GuildItemWrapperComponent = e.component;
+			}
+			
 			processGuildItem (e) {
 				BDFDB.TimeUtils.clear(forceCloseTimeout);
 				forceCloseTimeout = BDFDB.TimeUtils.timeout(_ => {
-					let newCurrentGuild = BDFDB.LibraryModules.LastGuildStore.getGuildId();
+					let newCurrentGuild = BDFDB.LibraryStores.SelectedGuildStore.getGuildId();
 					if (newCurrentGuild != currentGuild && newCurrentGuild) {
 						let folder = BDFDB.GuildUtils.getFolder(newCurrentGuild);
-						if (this.settings.general.closeAllFolders) for (let openFolderId of BDFDB.LibraryModules.FolderUtils.getExpandedFolders()) if (!folder || openFolderId != folder.folderId || !this.settings.general.forceOpenFolder) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(openFolderId);
-						else if (folder && this.settings.general.closeTheFolder && !this.settings.general.forceOpenFolder && BDFDB.LibraryModules.FolderUtils.isFolderExpanded(folder.folderId)) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(folder.folderId);
+						if (this.settings.general.closeAllFolders) for (let openFolderId of BDFDB.LibraryStores.ExpandedGuildFolderStore.getExpandedFolders()) if (!folder || openFolderId != folder.folderId || !this.settings.general.forceOpenFolder) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(openFolderId);
+						else if (folder && this.settings.general.closeTheFolder && !this.settings.general.forceOpenFolder && BDFDB.LibraryStores.ExpandedGuildFolderStore.isFolderExpanded(folder.folderId)) BDFDB.LibraryModules.GuildUtils.toggleGuildFolderExpand(folder.folderId);
 					}
 					currentGuild = newCurrentGuild;
 				}, 1000);
@@ -810,20 +851,20 @@ module.exports = (_ => {
 				}
 			}
 			
-			processGuildFolderSettingsModal (e) {
+			processFolderSettingsModal (e) {
 				if (e.node) {
 					let root = e.node.parentElement.querySelector(BDFDB.dotCN.modal);
 					BDFDB.DOMUtils.addClass(root, BDFDB.disCN.modalmedium, BDFDB.disCN.modalwrapper, `${this.name}-modal`);
 					BDFDB.DOMUtils.removeClass(root, BDFDB.disCN.modalsmall);
 				}
 				if (e.returnvalue) {
-					let folder = BDFDB.LibraryModules.FolderStore.getGuildFolderById(e.instance.props.folderId);
+					let folder = BDFDB.LibraryModules.SortedGuildUtils.getGuildFolderById(e.instance.props.folderId);
 					let data = this.getFolderConfig(e.instance.props.folderId);
 					let newData = Object.assign({}, data, {folderName: folder.folderName});
 					
 					let tabs = {};
 					
-					let [children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: ["ModalHeader", "Header"]});
+					let [children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: "ModalHeader"});
 					if (index > -1) {
 						children[index].props.className = BDFDB.DOMUtils.formatClassName(children[index].props.className, BDFDB.disCN.modalheaderhassibling),
 						children.splice(index + 1, 0, BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Flex, {
@@ -853,7 +894,7 @@ module.exports = (_ => {
 							})
 						}));
 					}
-					[children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: ["ModalContent", "Content"]});
+					[children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {filter: n => n && n.props && n.props.children && n.props.children.type == "form"});
 					if (index > -1) children[index].props.children = [
 						BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.ModalComponents.ModalTabContent, {
 							tab: this.labels.modal_tabheader1,
@@ -882,7 +923,7 @@ module.exports = (_ => {
 									type: "Switch",
 									margin: 20,
 									label: this.labels.modal_usecloseicon,
-									tag: BDFDB.LibraryComponents.FormComponents.FormTitle.Tags.H5,
+									tag: BDFDB.LibraryComponents.FormComponents.FormTags.H5,
 									value: data.useCloseIcon,
 									onChange: value => {newData.useCloseIcon = value;}
 								})
@@ -914,7 +955,7 @@ module.exports = (_ => {
 									type: "Switch",
 									margin: 20,
 									label: this.labels.modal_swapcolor,
-									tag: BDFDB.LibraryComponents.FormComponents.FormTitle.Tags.H5,
+									tag: BDFDB.LibraryComponents.FormComponents.FormTags.H5,
 									value: data.swapColors,
 									onChange: value => {newData.swapColors = value;}
 								})
@@ -944,7 +985,7 @@ module.exports = (_ => {
 									type: "Switch",
 									margin: 20,
 									label: this.labels.modal_copytooltipcolor,
-									tag: BDFDB.LibraryComponents.FormComponents.FormTitle.Tags.H5,
+									tag: BDFDB.LibraryComponents.FormComponents.FormTags.H5,
 									value: data.copyTooltipColor,
 									onChange: value => {newData.copyTooltipColor = value;}
 								})
@@ -956,7 +997,7 @@ module.exports = (_ => {
 							children: BDFDB.ReactUtils.createElement(FolderIconCustomPreviewComponent, {}, true)
 						})
 					];
-					[children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: ["ModalFooter", "Footer"]});
+					[children, index] = BDFDB.ReactUtils.findParent(e.returnvalue, {name: "ModalFooter"});
 					if (index > -1) children[index].props.children = [
 						BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Button, {
 							children: BDFDB.LanguageUtils.LanguageStrings.SAVE,
@@ -994,7 +1035,7 @@ module.exports = (_ => {
 			generateId (prefix) {
 				if (prefix == "folder") {
 					let id = Math.floor(Math.random() * 4294967296);
-					return BDFDB.LibraryModules.FolderStore.guildFolders.every(n => !n.folderId || n.folderId != id) ? id : this.generateId(prefix);
+					return BDFDB.LibraryModules.SortedGuildUtils.guildFolders.every(n => !n.folderId || n.folderId != id) ? id : this.generateId(prefix);
 				}
 				else {
 					let data = BDFDB.DataUtils.load(this, prefix + "s");
@@ -1014,7 +1055,7 @@ module.exports = (_ => {
 			}
 			
 			getFolderConfig (folderId) {
-				let folder = BDFDB.LibraryModules.FolderStore.getGuildFolderById(folderId) || {};
+				let folder = BDFDB.LibraryModules.SortedGuildUtils.getGuildFolderById(folderId) || {};
 				let data = folderConfigs[folderId] || {
 					iconID: 			"-1",
 					muteFolder: 		false,
@@ -1072,11 +1113,10 @@ module.exports = (_ => {
 								className: BDFDB.disCNS.margintop4 + BDFDB.disCN.marginbottom4
 							}),
 							BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.ListRow, {
-								prefix: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.GuildComponents.Guild, {
+								prefix: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.GuildIconComponents.Icon, {
 									className: BDFDB.disCN.listavatar,
 									guild: guild,
-									menu: false,
-									tooltip: false
+									size: BDFDB.LibraryComponents.GuildIconComponents.Icon.Sizes.MEDIUM
 								}),
 								label: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TextScroller, {
 									children: guild.name
@@ -1103,7 +1143,7 @@ module.exports = (_ => {
 			}
 			
 			updateFolder (folder) {
-				let oldGuildFolders = [].concat(BDFDB.LibraryModules.FolderStore.guildFolders), guildFolders = [], guildPositions = [];
+				let oldGuildFolders = [].concat(BDFDB.LibraryModules.SortedGuildUtils.guildFolders), guildFolders = [], guildPositions = [];
 				for (let oldFolder of oldGuildFolders) {
 					if (oldFolder.folderId == folder.folderId) guildFolders.push(Object.assign({}, oldFolder, folder));
 					else guildFolders.push(oldFolder);
@@ -1116,7 +1156,7 @@ module.exports = (_ => {
 				if (!guildIds) return;
 				guildIds = [guildIds].flat(10);
 				if (!guildIds.length) return;
-				let oldGuildFolders = [].concat(BDFDB.LibraryModules.FolderStore.guildFolders), guildFolders = [], guildPositions = [], added = false;
+				let oldGuildFolders = [].concat(BDFDB.LibraryModules.SortedGuildUtils.guildFolders), guildFolders = [], guildPositions = [], added = false;
 				for (let oldFolder of oldGuildFolders) {
 					if (!oldFolder.folderId && guildIds.includes(oldFolder.guildIds[0])) {
 						if (!added) {
@@ -1134,7 +1174,7 @@ module.exports = (_ => {
 			}
 			
 			removeFolder (folderId) {
-				let oldGuildFolders = [].concat(BDFDB.LibraryModules.FolderStore.guildFolders), guildFolders = [], guildPositions = [];
+				let oldGuildFolders = [].concat(BDFDB.LibraryModules.SortedGuildUtils.guildFolders), guildFolders = [], guildPositions = [];
 				for (let oldFolder of oldGuildFolders) {
 					if (oldFolder.folderId == folderId) {
 						for (let guildId of oldFolder.guildIds) guildFolders.push({guildIds: [guildId]});
@@ -1146,7 +1186,7 @@ module.exports = (_ => {
 			}
 			
 			addGuildToFolder (folderId, guildId) {
-				let oldGuildFolders = [].concat(BDFDB.LibraryModules.FolderStore.guildFolders), guildFolders = [], guildPositions = [];
+				let oldGuildFolders = [].concat(BDFDB.LibraryModules.SortedGuildUtils.guildFolders), guildFolders = [], guildPositions = [];
 				for (let oldFolder of oldGuildFolders) {
 					if (oldFolder.folderId) {
 						let newFolder = Object.assign({}, oldFolder);
@@ -1161,7 +1201,7 @@ module.exports = (_ => {
 			}
 			
 			removeGuildFromFolder (folderId, guildId) {
-				let oldGuildFolders = [].concat(BDFDB.LibraryModules.FolderStore.guildFolders), guildFolders = [], guildPositions = [];
+				let oldGuildFolders = [].concat(BDFDB.LibraryModules.SortedGuildUtils.guildFolders), guildFolders = [], guildPositions = [];
 				for (let oldFolder of oldGuildFolders) {
 					if (oldFolder.folderId == folderId) {
 						let newFolder = Object.assign({}, oldFolder);
@@ -1954,5 +1994,5 @@ module.exports = (_ => {
 				}
 			}
 		};
-	})(window.BDFDB_Global.PluginUtils.buildPlugin(config));
+	})(window.BDFDB_Global.PluginUtils.buildPlugin(changeLog));
 })();

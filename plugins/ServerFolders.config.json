@@ -30,7 +30,8 @@
 			"showCountBadge": true,
 			"extraColumn": true,
 			"addSeparators": true,
-			"addFolderIcon": false
+			"addFolderIcon": false,
+			"addFolderBackground": false
 		}
 	}
 }

@@ -2,7 +2,7 @@
  * @name BetterSyntax
  * @author TheCommieAxolotl#0001
  * @description Lets you edit Syntax Highlighting with an easy interface and adds some useful buttons.
- * @version 2.1.0
+ * @version 2.1.1
  * @authorId 538487970408300544
  * @invite 5BSWtSM3XU
  * @source https://github.com/TheCommieAxolotl/BetterDiscord-Stuff/tree/main/BetterSyntax
@@ -36,7 +36,7 @@ module.exports = (() => {
                 },
             ],
             github_raw: "https://raw.githubusercontent.com/TheCommieAxolotl/BetterDiscord-Stuff/main/BetterSyntax/BetterSyntax.plugin.js",
-            version: "2.1.0",
+            version: "2.1.1",
             description: "Lets you edit Syntax Highlighting with an easy interface and adds some useful buttons.",
         },
 
@@ -229,8 +229,8 @@ module.exports = (() => {
                         id: "filePath",
                         name: "File Path",
                         note: "Path to a hljs stylesheet",
-                        value: ""
-                    }
+                        value: "",
+                    },
                 ],
             },
             {
@@ -306,7 +306,7 @@ module.exports = (() => {
                   const { React, Webpack } = BdApi;
                   const { Filters } = Webpack;
 
-                  const Tooltip = Webpack.getModule(Filters.byDisplayName("Tooltip"));
+                  const Tooltip = Webpack.getModule((m) => m?.toString().includes("shouldShowTooltip") && m?.Positions);
 
                   return class BetterSyntax extends Plugin {
                       async onStart() {
@@ -406,7 +406,7 @@ module.exports = (() => {
 
                               let css = "";
                               if (fs.existsSync(this.settings.categoryFile.filePath)) {
-                                  css = fs.readFileSync(this.settings.categoryFile.filePath, {encoding: "utf8"});
+                                  css = fs.readFileSync(this.settings.categoryFile.filePath, { encoding: "utf8" });
                               }
 
                               BdApi.injectCSS("BetterSyntaxHljsFile", css);

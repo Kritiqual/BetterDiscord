@@ -1,9 +1,21 @@
 {
 	"all": {
 		"changeLogs": {
-			"BetterSearchPage": "1.2.0",
-			"GameActivityToggle": "1.1.3",
-			"ServerFolders": "7.0.2"
+			"BDFDB": "3.0.2",
+			"BetterNsfwTag": "1.3.2",
+			"BetterSearchPage": "1.2.2",
+			"CharCounter": "1.6.2",
+			"ChatAliases": "2.4.4",
+			"GameActivityToggle": "1.1.8",
+			"ImageUtilities": "5.0.1",
+			"MessageUtilities": "1.9.6",
+			"OpenSteamLinksInApp": "1.1.5",
+			"PluginRepo": "2.4.3",
+			"QuickMention": "1.0.5",
+			"ReadAllNotificationsButton": "1.7.3",
+			"ServerFolders": "7.0.9",
+			"ThemeRepo": "2.4.5",
+			"Translator": "2.4.7"
 		},
 		"choices": {
 			"toastPosition": "right"

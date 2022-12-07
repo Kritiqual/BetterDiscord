@@ -1,15 +1,15 @@
 /**
- * @name QuickMention
+ * @name OpenSteamLinksInApp
  * @author DevilBro
  * @authorId 278543574059057154
- * @version 1.0.5
- * @description Adds a Mention Button to the Message Options Bar
+ * @version 1.1.5
+ * @description Opens Steam Links in Steam instead of your Browser
  * @invite Jx3TjNS
  * @donate https://www.paypal.me/MircoWittrien
  * @patreon https://www.patreon.com/MircoWittrien
  * @website https://mwittrien.github.io/
- * @source https://github.com/mwittrien/BetterDiscordAddons/tree/master/Plugins/QuickMention/
- * @updateUrl https://mwittrien.github.io/BetterDiscordAddons/Plugins/QuickMention/QuickMention.plugin.js
+ * @source https://github.com/mwittrien/BetterDiscordAddons/tree/master/Plugins/OpenSteamLinksInApp/
+ * @updateUrl https://mwittrien.github.io/BetterDiscordAddons/Plugins/OpenSteamLinksInApp/OpenSteamLinksInApp.plugin.js
  */
 
 module.exports = (_ => {
@@ -56,36 +56,41 @@ module.exports = (_ => {
 			return template.content.firstElementChild;
 		}
 	} : (([Plugin, BDFDB]) => {
-		return class QuickMention extends Plugin {
-			onLoad () {
-				this.modulePatches = {
-					after: [
-						"MessageToolbar"
-					]
-				};
-			}
+		const urls = {
+			steam: ["https://steamcommunity.", "https://help.steampowered.", "https://store.steampowered.", "https://s.team/", "a.akamaihd.net/"]
+		};
+		
+		return class OpenSteamLinksInApp extends Plugin {
+			onLoad () {}
 			
-			onStart () {}
+			onStart () {
+				for (let key in urls) BDFDB.ListenerUtils.add(this, document, "click", BDFDB.ArrayUtils.removeCopies(urls[key].map(url => url.indexOf("http") == 0 ? (url.indexOf("https://") == 0 ? [`a[href^="${url}"]`, `a[href^="${url.replace(/https:\/\//i, "http://")}"]`] : `a[href^="${url}"]`) : `a[href*="${url}"][href*="${key}"]`).flat(10).filter(n => n)).join(", "), e => {
+					if (!(e.currentTarget.className && e.currentTarget.className.indexOf(BDFDB.disCN.imagezoom) > -1) && !BDFDB.DOMUtils.getParent(BDFDB.dotCN.imagezoom, e.currentTarget)) this.openIn(e, key, e.currentTarget.href);
+				});
+			}
 			
 			onStop () {}
 		
-			processMessageToolbar (e) {
-				if (e.instance.props.message.author.id != BDFDB.UserUtils.me.id && (BDFDB.UserUtils.can("SEND_MESSAGES") || e.instance.props.channel && (e.instance.props.channel.isDM() || e.instance.props.channel.isGroupDM()))) {
-					e.returnvalue.props.children.splice(1, 0, BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.TooltipContainer, {
-						key: "mention",
-						text: BDFDB.LanguageUtils.LanguageStrings.MENTION,
-						children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.Clickable, {
-							className: BDFDB.disCN.messagetoolbarbutton,
-							onClick: _ => BDFDB.LibraryModules.DispatchUtils.ComponentDispatch.dispatchToLastSubscribed(BDFDB.DiscordConstants.ComponentActions.INSERT_TEXT, {
-								plainText: `<@!${e.instance.props.message.author.id}>`
-							}),
-							children: BDFDB.ReactUtils.createElement(BDFDB.LibraryComponents.SvgIcon, {
-								className: BDFDB.disCN.messagetoolbaricon,
-								name: BDFDB.LibraryComponents.SvgIcon.Names.NOVA_AT
-							})
-						})
-					}));
+			openIn (e, key, url) {
+				let platform = BDFDB.StringUtils.upperCaseFirstChar(key);
+				if (url && !url.startsWith("https://images-ext-1.discord") && !url.startsWith("https://images-ext-2.discord") && typeof this[`openIn${platform}`] == "function") {
+					BDFDB.ListenerUtils.stopEvent(e);
+					this[`openIn${platform}`](url);
+					return true;
 				}
+				return false;
+			}
+
+			openInSteam (url) {
+				const xhr = new XMLHttpRequest();
+				xhr.open("GET", url, true);
+				xhr.onreadystatechange = function () {
+					if (xhr.readyState != 4) return;
+					let responseUrl = xhr.responseURL || url;
+					if (BDFDB.LibraryRequires.electron.shell.openExternal("steam://openurl/" + responseUrl));
+					else BDFDB.DiscordUtils.openLink(responseUrl);
+				};
+				xhr.send(null);
 			}
 		};
 	})(window.BDFDB_Global.PluginUtils.buildPlugin(changeLog));

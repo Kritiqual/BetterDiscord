@@ -1,12 +1,12 @@
 {
     "currentVersionInfo": {
-        "version": "2.1.0",
+        "version": "2.1.1",
         "hasShownChangelog": true
     },
     "settings": {
         "categoryPresets": {
             "enablePresets": true,
-            "theme": "nord"
+            "theme": "ultra"
         },
         "categoryEditor": {
             "enableEditor": false,
@@ -29,6 +29,10 @@
         "categoryLink": {
             "enableLink": false,
             "link": ""
+        },
+        "categoryFile": {
+            "enableFile": false,
+            "filePath": ""
         },
         "fontName": "Source Code Pro",
         "fontImport": "",
