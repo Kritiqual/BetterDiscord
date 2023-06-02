@@ -23,8 +23,8 @@
                 ],
                 "page": 0
             },
-            "delay": 0.1,
-            "duration": 0.3,
+            "delay": "0.05",
+            "duration": "0.1",
             "enabled": true,
             "name": "brick-left",
             "page": 0,
@@ -51,8 +51,8 @@
                 ],
                 "page": 0
             },
-            "delay": 0.055,
-            "duration": 0.3,
+            "delay": "0.055",
+            "duration": "0.1",
             "enabled": true,
             "name": "brick-up",
             "page": 0,
@@ -80,11 +80,11 @@
                 "page": 0
             },
             "delay": 0.055,
-            "duration": 0.3,
+            "duration": "0.1",
             "enabled": true,
             "limit": 30,
-            "name": "brick-down",
-            "page": 0,
+            "name": "slide-right",
+            "page": 1,
             "sending": {
                 "custom": {
                     "enabled": false,
@@ -105,8 +105,8 @@
                     "page": 0
                 },
                 "enabled": "onsent",
-                "name": "brick-up",
-                "page": 0
+                "name": "slide-left",
+                "page": 1
             },
             "timing": "linear"
         }

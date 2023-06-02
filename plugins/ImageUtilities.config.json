@@ -45,6 +45,7 @@
 			"userAvatars": true,
 			"groupIcons": true,
 			"guildIcons": true,
+			"streamPreviews": true,
 			"emojis": true
 		},
 		"rescaleSettings": {
@@ -61,8 +62,9 @@
 		},
 		"zoomSettings": {
 			"pixelMode": false,
+			"lensSize": 200,
 			"zoomLevel": 2,
-			"lensSize": 200
+			"zoomSpeed": 0.1
 		}
 	}
 }

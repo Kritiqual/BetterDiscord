@@ -2,11 +2,12 @@
     "settings": {
         "tabs": [
             {
-                "name": "Friends",
-                "url": "/channels/@me",
+                "name": "#🆘︱zoom-65v2-build-help",
+                "url": "/channels/919202175530463272/1079028236090085406",
                 "selected": true,
                 "currentStatus": "none",
-                "iconUrl": "https://cdn.discordapp.com/embed/avatars/0.png"
+                "iconUrl": "https://cdn.discordapp.com/icons/919202175530463272/9f62c76a49bfbf3ae952e6cd61e6fbaa.webp?size=40",
+                "channelId": "1079028236090085406"
             }
         ],
         "favs": [],
